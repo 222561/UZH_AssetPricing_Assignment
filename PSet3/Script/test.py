@@ -92,6 +92,12 @@ for col in sample.columns[:4]:
     alpha,beta,exret = calc_CAPM(sample,col)
     plt.scatter(beta,exret)
     plt.text(beta-0.025,exret+0.03, col)
+    
+# plot beta - alpha
+for col in sample.columns[:4]:
+    alpha,beta,exret = calc_CAPM(sample,col)
+    plt.scatter(beta,alpha)
+    plt.text(beta-0.025,alpha+0.01, col)
 
 
 # iii)
