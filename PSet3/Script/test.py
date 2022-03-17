@@ -13,7 +13,7 @@ dat.columns = ['yyyymm'] + list(dat.columns[1:])
 # =============================================================================
 # i) 
 syyyymm,eyyyymm = 192607, 196312
-sample =  dat[(dat['yyyymm']>=syyyymm) & (dat['yyyymm']<=eyyyymm)].drop('yyyymm',axis=1)
+sample =  dat[(dat['yyyymm']>=syyyymm) & (dat['yyyymm']<=eyyyymm)].set_index('yyyymm')
 
 # mean excess returns (over riskfree rate)
 mean_exrtn = sample.mean(axis = 0) - sample.mean(axis=0).iloc[-1] 
@@ -69,10 +69,24 @@ df = pd.DataFrame([exret_vol([1,0,0,0,0,0])
                    ,exret_vol([0,0,0,0,0,1])
                    ,exret_vol(weights_opt1)
                    ,exret_vol(weights_opt2)])
-df.plot.scatter(x=1,y=0,xlim=(0,10),ylim=(-0.1,1.5))
+df.index = list(sample.columns) + ['Without riskless asset','With riskless asset']
+# df.plot.scatter(x=1,y=0,xlim=(0,10),ylim=(-0.1,1.5))
 # plt.close()
 
 # plot two sets above + each factor portfolio (x-axis: std, y-axis: mean excess return
+for i,row in enumerate(df.index):
+    if i == 4:
+        plt.scatter(df.loc[row,1],df.loc[row,0],marker="s")
+        plt.text(df.loc[row,1]+0.2,df.loc[row,0]-0.04, row)
+    elif i <4:
+        plt.scatter(df.loc[row,1],df.loc[row,0])
+        plt.text(df.loc[row,1]-1,df.loc[row,0]-0.1, row)
+    else:
+        plt.scatter(df.loc[row,1],df.loc[row,0],marker="^")
+        plt.text(df.loc[row,1]-1.5,df.loc[row,0]+0.05, row)
+plt.show()
+plt.close()
+
 
 # ii)
 # calculate beta
@@ -92,16 +106,89 @@ for col in sample.columns[:4]:
     alpha,beta,exret = calc_CAPM(sample,col)
     plt.scatter(beta,exret)
     plt.text(beta-0.025,exret+0.03, col)
+plt.show()
+plt.close()
     
 # plot beta - alpha
 for col in sample.columns[:4]:
     alpha,beta,exret = calc_CAPM(sample,col)
     plt.scatter(beta,alpha)
     plt.text(beta-0.025,alpha+0.01, col)
-
+plt.show()
+plt.close()
 
 # iii)
 #  Gibbons-Ross-Shanken test
+# reference: https://github.com/SoniaistSonia/GRS-test_Python/blob/master/GRS_test_Python
+
+"""
+Function GRS_test(factor, resid, alpha) is to conduct GRS test according 
+to Gibbons, Ross & Shanken(1989) to receive GRS-statistic and p-value.
+
+H0: alpha1=alpha2=...=alphaN
+
+Parameters:
+  T = number of months
+  N = number of portfolios
+  L = number of factors
+
+Inputs:
+  factor: matrix of FF factors with shape (T, L)
+  resid: matrix of residuals with shape (T, N)
+  alpha: matrix of intercepts with shape (N, 1)
+
+Outputs:
+  f_grs: GRS-statistic
+  p_grs: P-value
+
+"""
+
+import scipy.stats as st
+
+def GRS_test(factor, resid, alpha):
+    N = resid.shape[1]        
+    T = resid.shape[0]       
+    L = factor.shape[1]      
+
+    if (T-N-L) < 0:
+        print('can not conduct GRS test because T-N-L<0')
+        return
+
+    factor = np.asmatrix(factor)                   # factor matrix (T, L)
+    resid = np.asmatrix(resid)                     # residual matrix (T, N)
+    alpha = np.asmatrix(alpha).reshape(N, 1)       # intercept matrix (N, 1)
+
+    mean_return_factor = (factor.mean(axis=0))
+
+    # covariance matrix of residuals
+    cov_resid = (resid.T * resid) / (T-L-1)
+    # covariance matrix of factors
+    cov_factor = ((factor - mean_return_factor).T * (factor - mean_return_factor)) / (T-1)
+
+    mean_return_factor = mean_return_factor.reshape(L, 1)
+
+    # GRS statistic
+    f_grs = float((T/N) * ((T-N-L)/(T-L-1)) * ((alpha.T * np.linalg.inv(cov_resid) * alpha) / (1 + mean_return_factor.T * np.linalg.inv(cov_factor) * mean_return_factor)))
+
+    # p-value
+    p_grs = 1 - st.f.cdf(f_grs, N, (T-N-L))
+
+    return f_grs, p_grs
+
+ 
+# defining the variables
+x = sample['Market '].tolist()
+y = np.dot(sample,weights_opt2).tolist()
+ 
+# adding the constant term
+x = sm.add_constant(x)
+ 
+# performing the regression
+# and fitting the model
+result = sm.OLS(y, x).fit()
+
+
+GRS_test(pd.DataFrame(sample['Market ']),pd.DataFrame(result.resid),pd.DataFrame([result.params[0]]))
 
 
 # =============================================================================
@@ -110,18 +197,55 @@ for col in sample.columns[:4]:
 # i)
 # 1y MA of small-high minus small-low
 
+def plot_12MA__smallHML(syyyymm,eyyyymm):
+    sample =  dat[(dat['yyyymm']>=syyyymm-100) & (dat['yyyymm']<=eyyyymm)].set_index('yyyymm')
+    sample.index = pd.to_datetime(sample.index, format='%Y%m')
+    sample['small HML'] = (sample['Small-High']-sample['Small-Low'])
+    sample['small HML'].rolling(12).mean().plot()
+
 # main period
-# syyyymm,eyyyymm = 196401,202106
+syyyymm,eyyyymm = 196401,202106
+plot_12MA__smallHML(syyyymm,eyyyymm)
+plt.show()
+plt.close()
 # 4 sub periods
-# syyyymm,eyyyymm = 196401,199312
-# syyyymm,eyyyymm = 199401,200912
-# syyyymm,eyyyymm = 201001,202001
-# syyyymm,eyyyymm = 202002,202106
+syyyymm,eyyyymm = 196401,199312
+plot_12MA__smallHML(syyyymm,eyyyymm)
+syyyymm,eyyyymm = 199401,200912
+plot_12MA__smallHML(syyyymm,eyyyymm)
+syyyymm,eyyyymm = 201001,202001
+plot_12MA__smallHML(syyyymm,eyyyymm)
+syyyymm,eyyyymm = 202002,202106
+plot_12MA__smallHML(syyyymm,eyyyymm)
+plt.show()
+plt.close()
 
 # ii)
 # calculate ret,std,SR on small-High 
-# 4 sub periods
+def calc_performance_smallHML(syyyymm,eyyyymm):
+    sample =  dat[(dat['yyyymm']>=syyyymm) & (dat['yyyymm']<=eyyyymm)].set_index('yyyymm')
+    sample.index = pd.to_datetime(sample.index, format='%Y%m')
+    sample['small HML'] = (sample['Small-High']-sample['Small-Low'])
+    ret = sample['small HML'].mean()
+    std = sample['small HML'].std()
+    SR = ret/std
+    return ret,std,SR
 
+# main period
+syyyymm,eyyyymm = 196401,202106
+summary = pd.DataFrame(calc_performance_smallHML(syyyymm,eyyyymm))
+summary.columns = [str(syyyymm)+"-"+str(eyyyymm)]
+summary.index = ['Return','Std','SR']
+# 4 sub periods
+syyyymm,eyyyymm = 196401,199312
+summary[str(syyyymm)+"-"+str(eyyyymm)] = calc_performance_smallHML(syyyymm,eyyyymm)
+syyyymm,eyyyymm = 199401,200912
+summary[str(syyyymm)+"-"+str(eyyyymm)] = calc_performance_smallHML(syyyymm,eyyyymm)
+syyyymm,eyyyymm = 201001,202001
+summary[str(syyyymm)+"-"+str(eyyyymm)] = calc_performance_smallHML(syyyymm,eyyyymm)
+syyyymm,eyyyymm = 202002,202106
+summary[str(syyyymm)+"-"+str(eyyyymm)] = calc_performance_smallHML(syyyymm,eyyyymm)
+display(summary.T)
 
 # iii)
 # calculate quartely retu on small-High
