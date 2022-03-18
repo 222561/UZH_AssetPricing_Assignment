@@ -245,14 +245,35 @@ syyyymm,eyyyymm = 201001,202001
 summary[str(syyyymm)+"-"+str(eyyyymm)] = calc_performance_smallHML(syyyymm,eyyyymm)
 syyyymm,eyyyymm = 202002,202106
 summary[str(syyyymm)+"-"+str(eyyyymm)] = calc_performance_smallHML(syyyymm,eyyyymm)
-display(summary.T)
+summary.T
 
 # iii)
-# calculate quartely retu on small-High
+# calculate quartely return on small-High
+def cumret_f(x):
+    ret = 1
+    for i in x:
+        ret *= 1+i/100
+    return (ret  - 1)*100
+
+def acf_sHML_quartely_ret(syyyymm,eyyyymm):
+    sample =  dat[(dat['yyyymm']>=syyyymm) & (dat['yyyymm']<=eyyyymm)].set_index('yyyymm')
+    sample['Small HML'] = (sample['Small-High']-sample['Small-Low'])
+    sample['Small-HML_Q'] = sample['Small HML'].rolling(3).apply(cumret_f)
+    sample = sample.iloc[[True if str(yyyymm)[-2:] in ['03','06','09','12'] else False for yyyymm in sample.index],:]
+    
+    sample.index = pd.to_datetime(sample.index, format='%Y%m')
+    from statsmodels.graphics.tsaplots import plot_acf
+    plot_acf(sample['Small-HML_Q'], lags=np.arange(13), title="ACF: " + str(syyyymm) + "-" + str(eyyyymm))
+
 # calculate autocorrelation
-# syyyymm,eyyyymm = 196401,199312
-# syyyymm,eyyyymm = 199401,200912
-# syyyymm,eyyyymm = 201001,202106
+# syyyymm,eyyyymm = 196401,202106
+# acf_sHML_quartely_ret(syyyymm,eyyyymm)
+syyyymm,eyyyymm = 196401,199312
+acf_sHML_quartely_ret(syyyymm,eyyyymm)
+syyyymm,eyyyymm = 199401,200912
+acf_sHML_quartely_ret(syyyymm,eyyyymm)
+syyyymm,eyyyymm = 201001,202106
+acf_sHML_quartely_ret(syyyymm,eyyyymm)
 
 
 
