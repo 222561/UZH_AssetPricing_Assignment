@@ -12,80 +12,164 @@ dat.columns = ['yyyymm'] + list(dat.columns[1:])
 # # a)
 # =============================================================================
 # i) 
-syyyymm,eyyyymm = 192607, 196312
-sample =  dat[(dat['yyyymm']>=syyyymm) & (dat['yyyymm']<=eyyyymm)].set_index('yyyymm')
-
-# mean excess returns (over riskfree rate)
-mean_exrtn = sample.mean(axis = 0) - sample.mean(axis=0).iloc[-1] 
-mean_exrtn.round(2)
-
-# covariance of excess return
-cov = pd.DataFrame(np.cov(sample.T))
-cov.index = mean_exrtn.index
-cov.columns = mean_exrtn.index
-cov
-
-# mean - variance efficent sets
-def exret_vol(port_weights):
-    port_exret = np.dot(mean_exrtn,port_weights)
-    port_vol = np.sqrt(np.dot(port_weights,np.dot(cov,port_weights)))
-    return port_exret, port_vol
-
-def port_SR(port_weights):
-    port_exret, port_vol = exret_vol(port_weights)
-    return port_exret/port_vol
-
-def objective(port_weights):
-    return -port_SR(port_weights)
-
-def optimized_weights(sample,objective,bnds,cons):
-    port_weights = (np.zeros(sample.shape[1]) + 1)/sample.shape[1]
-    res = minimize(objective, port_weights, method='SLSQP',
-                   bounds=bnds,constraints=cons)
+def MeanVarianceFrontier_set(mu,cov,color,label):
+    def element_MeanVarianceFrontier(mu,cov):
+        invcov = np.linalg.inv(cov)
+        ones =  mu*0+1
+        
+        A = np.dot(np.dot(mu,invcov),mu)
+        B = np.dot(np.dot(ones,invcov),mu)
+        C = np.dot(np.dot(ones,invcov),ones)
+        D = A*C-B**2
+        
+        return A,B,C,D
     
-    port_weights = list(res.x)
-    return port_weights
+    def MeanVarianceFrontier(sigma,A,B,C,D):
+        if sigma**2-1/C > 0:
+            mu_p = B/C + np.sqrt(D/C*(sigma**2-1/C))
+        else:
+            mu_p = B/C
+        return mu_p
+    
+    A,B,C,D = element_MeanVarianceFrontier(mu,cov)
 
-# without riskless asset
-# bnds = []
-bnds = [(0,1) for i in range(sample.shape[1])]
-cons = [{'type':'eq','fun': lambda port_weights: np.sum(port_weights) - 1},
-        {'type':'eq','fun': lambda port_weights: port_weights[-1] }]
-weights_opt1 = optimized_weights(sample,objective,bnds,cons)
-exret_vol(weights_opt1)
-port_SR(weights_opt1)
+    sigmas = list(np.arange(np.sqrt(1/C),15,step=0.05))
+    mu_ps = [MeanVarianceFrontier(sigma,A,B,C,D) for sigma in sigmas]
+    
 
-# with riskless asset
-cons = [{'type':'eq','fun': lambda port_weights: np.sum(port_weights) - 1}]
-weights_opt2 = optimized_weights(sample,objective,bnds,cons)
-exret_vol(weights_opt2)
-port_SR(weights_opt2)
+    plt.scatter(sigmas,mu_ps,color=color,label = label)
+        
+    plt.legend()
+    
+    
 
-df = pd.DataFrame([exret_vol([1,0,0,0,0,0])
-                   ,exret_vol([0,1,0,0,0,0])
-                   ,exret_vol([0,0,1,0,0,0])
-                   ,exret_vol([0,0,0,1,0,0])
-                   ,exret_vol([0,0,0,0,1,0])
-                   ,exret_vol([0,0,0,0,0,1])
-                   ,exret_vol(weights_opt1)
-                   ,exret_vol(weights_opt2)])
-df.index = list(sample.columns) + ['Without riskless asset','With riskless asset']
-# df.plot.scatter(x=1,y=0,xlim=(0,10),ylim=(-0.1,1.5))
+def MeanVarianceFrontier_set_w_rf(mu,cov,color,label):
+    invcov = np.linalg.inv(cov)
+    E = np.dot(np.dot(mu,invcov),mu)
+    
+    sigmas = list(np.arange(0,15,step=0.05))
+    mu_ps = [np.sqrt(E)*sigma for sigma in sigmas]
+
+    plt.scatter(sigmas,mu_ps,color=color,label = label)
+        
+    plt.legend()
+    
+    # get tangent portfolio's SR
+    SR = np.divide(mu_ps,sigmas)[-1]
+    
+    return SR
+
+    
+def run_for_i(syyyymm,eyyyymm):
+    sample =  dat[(dat['yyyymm']>=syyyymm) & (dat['yyyymm']<=eyyyymm)].set_index('yyyymm')
+    
+    # mean excess returns (over riskfree rate)
+    print("#-------------------#")
+    print("Mean excess returns (over riskfree rate)")
+    exrtn = sample.copy()
+    for col in exrtn.columns:
+        exrtn[col] = exrtn[col] - sample['Riskfree Rate']
+    mean_exrtn = exrtn.mean(axis = 0)
+    display(mean_exrtn.round(2))
+    
+    # covariance of excess return
+    print("#-------------------#")
+    print("Covariance of excess return")
+    cov = pd.DataFrame(np.cov(exrtn.T))
+    cov.index = mean_exrtn.index
+    cov.columns = mean_exrtn.index
+    display(cov)
+    
+    
+    print("#-------------------#")
+    print("Plot of Mean Variance Frontiers")
+    mu = mean_exrtn[:-1]
+    cov = cov.iloc[:-1,:-1]
+    MeanVarianceFrontier_set(mu,cov,"green","MV fronter without riskless-asset")
+    SR_tangent = MeanVarianceFrontier_set_w_rf(mu,cov,"blue","MV fronter with riskless-asset")
+    
+    colors = ['red','yellow','orange','purple','grey']
+    for i in range(cov.shape[0]):
+        if mu.index[i] == "Market ":
+            plt.scatter(np.sqrt(cov.iloc[i,i]),mu[i],color=colors[i],label = mu.index[i],marker='^')
+        else:
+            plt.scatter(np.sqrt(cov.iloc[i,i]),mu[i],color=colors[i],label = mu.index[i],marker='*')
+        plt.legend()
+    plt.legend() 
+    
+     # Calculate the Sharpe ratios of the tangency portfolio and the market portfolio
+    print("#-------------------#")
+    print(" the Sharpe ratios of the tangency portfolio: " + str(round(SR_tangent,3)))
+    SR_market = exrtn['Market '].mean()/exrtn['Market '].std()
+    print(" the Sharpe ratios of the market portfolio: " + str(round(SR_market,3)))
+    
+    return SR_tangent,SR_market
+    
+
+syyyymm,eyyyymm = 192607, 202106
+run_for_i(syyyymm,eyyyymm)
+
+# # mean - variance efficent sets
+# def exret_vol(port_weights):
+#     port_exret = np.dot(mean_exrtn,port_weights)
+#     port_vol = np.sqrt(np.dot(port_weights,np.dot(cov,port_weights)))
+#     return port_exret, port_vol
+
+# def port_SR(port_weights):
+#     port_exret, port_vol = exret_vol(port_weights)
+#     return port_exret/port_vol
+
+# def objective(port_weights):
+#     return -port_SR(port_weights)
+
+# def optimized_weights(sample,objective,bnds,cons):
+#     port_weights = (np.zeros(sample.shape[1]) + 1)/sample.shape[1]
+#     res = minimize(objective, port_weights, method='SLSQP',
+#                    bounds=bnds,constraints=cons)
+    
+#     port_weights = list(res.x)
+#     return port_weights
+
+# # without riskless asset
+# # bnds = []
+# bnds = [(0,1) for i in range(sample.shape[1])]
+# cons = [{'type':'eq','fun': lambda port_weights: np.sum(port_weights) - 1},
+#         {'type':'eq','fun': lambda port_weights: port_weights[-1] }]
+# weights_opt1 = optimized_weights(sample,objective,bnds,cons)
+# exret_vol(weights_opt1)
+# port_SR(weights_opt1)
+
+# # with riskless asset
+# cons = [{'type':'eq','fun': lambda port_weights: np.sum(port_weights) - 1}]
+# weights_opt2 = optimized_weights(sample,objective,bnds,cons)
+# exret_vol(weights_opt2)
+# port_SR(weights_opt2)
+
+# df = pd.DataFrame([exret_vol([1,0,0,0,0,0])
+#                    ,exret_vol([0,1,0,0,0,0])
+#                    ,exret_vol([0,0,1,0,0,0])
+#                    ,exret_vol([0,0,0,1,0,0])
+#                    ,exret_vol([0,0,0,0,1,0])
+#                    ,exret_vol([0,0,0,0,0,1])
+#                    ,exret_vol(weights_opt1)
+#                    ,exret_vol(weights_opt2)])
+# df.index = list(sample.columns) + ['Without riskless asset','With riskless asset']
+# # df.plot.scatter(x=1,y=0,xlim=(0,10),ylim=(-0.1,1.5))
+# # plt.close()
+
+# # plot two sets above + each factor portfolio (x-axis: std, y-axis: mean excess return
+# for i,row in enumerate(df.index):
+#     if i == 4:
+#         plt.scatter(df.loc[row,1],df.loc[row,0],marker="s")
+#         plt.text(df.loc[row,1]+0.2,df.loc[row,0]-0.04, row)
+#     elif i <4:
+#         plt.scatter(df.loc[row,1],df.loc[row,0])
+#         plt.text(df.loc[row,1]-1,df.loc[row,0]-0.1, row)
+#     else:
+#         plt.scatter(df.loc[row,1],df.loc[row,0],marker="^")
+#         plt.text(df.loc[row,1]-1.5,df.loc[row,0]+0.05, row)
+# plt.show()
 # plt.close()
-
-# plot two sets above + each factor portfolio (x-axis: std, y-axis: mean excess return
-for i,row in enumerate(df.index):
-    if i == 4:
-        plt.scatter(df.loc[row,1],df.loc[row,0],marker="s")
-        plt.text(df.loc[row,1]+0.2,df.loc[row,0]-0.04, row)
-    elif i <4:
-        plt.scatter(df.loc[row,1],df.loc[row,0])
-        plt.text(df.loc[row,1]-1,df.loc[row,0]-0.1, row)
-    else:
-        plt.scatter(df.loc[row,1],df.loc[row,0],marker="^")
-        plt.text(df.loc[row,1]-1.5,df.loc[row,0]+0.05, row)
-plt.show()
-plt.close()
 
 
 # ii)
