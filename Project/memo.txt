@@ -1,30 +1,34 @@
 [data]
 period: 2014-2020
-universe: stock, ???
+universe: stock, ??? -> picked SP GLOBAL 1200 as it covers those regions, 20220514
 ESG data:
-[BBG/uzh library?]-ISS ESG, Numeric ESG Overall Rating 
-[BBG/uzh library?]-MSCI, IVA Industry Weighted score 
+<obtained>
 [BBG/uzh library?]-Refinitiv, TRESG Score 
+<not yet but possible>
 [WRDS]-RepRisk, Reputation Risk Index (RRI) 
+[BBG/uzh library?]-MSCI, IVA Industry Weighted score 
 [BBG/uzh library?]-Sustainalytics, ESG Risk Rating 
+<no chance>
+[BBG/uzh library?]-ISS ESG, Numeric ESG Overall Rating 
 [BBG/uzh library?]-S&P Global CSA, ESG Score 
 [BBG/uzh library?]-Truvalue Labs, Insight Score 
 [BBG/uzh library?]-Vigeo-Eiris, Global Score
 
 Financial Data:Thomson Reuters Worldscope,monthly
-[BBG/uzh library?]
+[WRDS]
+<obtained>
+-the price-to-book ratio, OK
+-the firm’s total assets, OK
+-the firm’s ebitover-total-assets ratio, OK
+-the firm’s size, OK
+<not yet>
 -return data, 
--the price-to-book ratio, 
 -the firm’s beta, 
--the firm’s total assets, 
--the firm’s ebitover-total-assets ratio,
--the firm’s size
 
 subsample:
 -north america
 -europe
 -japan
-
 
 [analysis]
 correlation
