@@ -1,11 +1,13 @@
 [data]
 period: 2014-2020
-universe: stock, ??? -> picked SP GLOBAL 1200 as it covers those regions, 20220514
+universe: stock, ??? -> picked SP GLOBAL 1200 ex Canada as it covers those regions, 20220514
 ESG data:
 <obtained>
 [BBG/uzh library?]-Refinitiv, TRESG Score 
-<not yet but possible>
 [WRDS]-RepRisk, Reputation Risk Index (RRI) 
+[WRDS]-MSCI , KLD
+
+<not yet but possible>
 [BBG/uzh library?]-MSCI, IVA Industry Weighted score 
 [BBG/uzh library?]-Sustainalytics, ESG Risk Rating 
 <no chance>
@@ -21,14 +23,14 @@ Financial Data:Thomson Reuters Worldscope,monthly
 -the firm’s total assets, OK
 -the firm’s ebitover-total-assets ratio, OK
 -the firm’s size, OK
+-return data, OK
 <not yet>
--return data, 
 -the firm’s beta, 
 
 subsample:
--north america
--europe
--japan
+-north america: Couldn't, only US
+-europe,OK
+-japan,OK
 
 [analysis]
 correlation
