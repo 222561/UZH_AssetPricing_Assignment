@@ -101,17 +101,19 @@ sp500_hist['gvkeyx'] = 'sp500'
 ids =pd.concat([ids,sp500_hist],axis=0)
 del sp500_hist,ids_crsp
 
-
+ids.to_csv("../Input/ids_all.csv",index=False)
 # =============================================================================
 # # get financial data
 # =============================================================================
 # na (compustat)
-fin_na = conn.raw_sql("select gvkey,fyear,fyr,at,ebit,teq,fic from comp.funda where gvkey in (" + make_id_list(ids,'gvkey') + ")")
+fin_na = conn.raw_sql("select gvkey,fyear,fyr,at,ebit,teq,fic,sich from comp.funda where gvkey in (" + make_id_list(ids,'gvkey') + ")")
 fin_na['source'] = 'comp'
 
 # non-na (compustat global)
-fin_nonna = conn.raw_sql("select gvkey,fyear,fyr,at,ebit,teq,fic from comp_global.g_funda where gvkey in (" + make_id_list(ids,'gvkey') + ")")
+fin_nonna = conn.raw_sql("select gvkey,fyear,fyr,at,ebit,teq,fic,sich from comp_global.g_funda where gvkey in (" + make_id_list(ids,'gvkey') + ")")
 fin_nonna['source'] = 'comp_global'
+
+test=conn.raw_sql("select * from comp_global.g_funda limit 5")
 
 # venn diagram
 venn2(subsets=(intersection(list(fin_na.gvkey.unique()), list(fin_nonna.gvkey.unique()))))
@@ -119,7 +121,7 @@ pyplot.title("financial data")
 pyplot.show()
 
 fin = pd.DataFrame()
-for col in ['at','ebit','teq','fic']:
+for col in ['at','ebit','teq','fic','sich']:
     tmp = pd.concat([fin_na,fin_nonna],axis=0).groupby(['gvkey','fyear','fyr'])[[col,'source']].first().rename(columns={'source':'source_'+col})
     fin = pd.concat([fin,tmp],axis=1)
 
@@ -129,6 +131,18 @@ fin = fin.reset_index()
 fin['yyyymm'] = fin['fyear'] * 100 + fin['fyr']
 fin = move_column(fin,'yyyymm',1)
 
+# =============================================================================
+# add name of sic industry clasification 
+# https://mckimmoncenter.ncsu.edu/2digitsiccodes-2/
+# =============================================================================
+sic_clasification = pd.read_csv("../data/sic_clasification.csv")
+fin['sic_desc'] = np.nan
+for ix,digit2 in zip(fin.index,fin['sich']):    
+    for lbound,ubound,desc in zip(sic_clasification['2digit_lbound'],sic_clasification['2digit_ubound'],sic_clasification['description']):
+        if not np.isnan(digit2):
+            if (lbound <=int(digit2//100)) & (int(digit2//100) <= ubound) :
+                fin.loc[ix,'sic_desc'] = desc
+        
 # =============================================================================
 # # get market data
 # =============================================================================
@@ -201,6 +215,17 @@ tresgscore = tresgscore.reset_index()
 
 del tresgscore_isin,tresgscore_sedol
 
+# =============================================================================
+# # get refinitiv beta for "Starmine valuation models"
+# =============================================================================
+key = 'isin'
+
+refinitivbeta = pd.read_csv("../data/refinitiv_beta_"+key+".csv")
+refinitivbeta.columns.name = key
+refinitivbeta = refinitivbeta.set_index('date').stack(key).to_frame().rename(columns={0:'Beta'}).replace("Unable to collect data for the field 'TR.WACCBeta' and some specific identifier(s).",np.nan).dropna(axis=0).reset_index()
+refinitivbeta['yyyymm'] = [int(date[-4:]) * 100 + int(date[-7:-5]) *1 for date in refinitivbeta.date]
+refinitivbeta = pd.merge(ids[['gvkey',key]].dropna(axis=0).drop_duplicates(),refinitivbeta,on=key,how='right')
+refinitivbeta = refinitivbeta[['gvkey','yyyymm','Beta']].drop_duplicates()
 # =============================================================================
 # # make msci klg score (available only up to 2018)
 # =============================================================================
@@ -310,6 +335,11 @@ msci_kld['yyyymm'] = msci_kld.year * 100 + 1
 
 # msci_kld[['gvkey','yyyymm']].drop_duplicates()
 
+# =============================================================================
+# # get risk free rate from famafrench website for us, eu, jp
+# =============================================================================
+famafrench_rf = pd.read_csv("../data/famafrench_rf.csv")
+famafrench_rf['rf_f1M'] = famafrench_rf['rf'].shift(1)/100
 
 # =============================================================================
 # # unfold historical index at monthly granularity
@@ -334,6 +364,8 @@ dat_all = pd.merge(dat_all,mkt, on = ['gvkey','yyyymm'],how='left')
 dat_all = pd.merge(dat_all,repriskrri[['gvkey','yyyymm','current_rri']], on = ['gvkey','yyyymm'],how='left')
 dat_all = pd.merge(dat_all,tresgscore[['gvkey','yyyymm','TRESGScore']], on = ['gvkey','yyyymm'],how='left')
 dat_all = pd.merge(dat_all,msci_kld[['gvkey','yyyymm','MSCI_KLD_raw_ESG_Score']], on = ['gvkey','yyyymm'],how='left')
+dat_all = pd.merge(dat_all,refinitivbeta, on = ['gvkey','yyyymm'],how='left')
+dat_all = pd.merge(dat_all,famafrench_rf, on = ['yyyymm'],how='left')
 
 # fill in blank between financial period (forward fullfilling is up to 15 months)
 dat_all = dat_all.sort_values(['gvkey','yyyymm']).reset_index(drop=True)
