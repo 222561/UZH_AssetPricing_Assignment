@@ -1,5 +1,5 @@
 [data]
-period: 2014-2020
+period: 2014-2020 -> (extended up tp 2021)
 universe: stock, ??? -> picked SP GLOBAL 1200 ex Canada as it covers those regions, 20220514
 ESG data:
 <obtained>
@@ -24,8 +24,7 @@ Financial Data:Thomson Reuters Worldscope,monthly
 -the firm’s ebitover-total-assets ratio, OK
 -the firm’s size, OK
 -return data, OK
-<not yet>
--the firm’s beta, 
+-the firm’s beta, OK
 
 subsample:
 -north america: Couldn't, only US
